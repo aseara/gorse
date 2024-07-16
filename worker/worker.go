@@ -1080,6 +1080,8 @@ func (w *Worker) checkRecommendCacheTimeout(ctx context.Context, userId string, 
 	if err != nil {
 		if !errors.Is(err, errors.NotFound) {
 			log.Logger().Error("failed to read last modify user time", zap.Error(err))
+		} else {
+			_ = w.CacheClient.Set(ctx, cache.Time(cache.Key(cache.LastModifyUserTime, userId), time.Now()))
 		}
 		return true
 	}
