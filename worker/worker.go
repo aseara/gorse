@@ -711,7 +711,7 @@ func (w *Worker) Recommend(users []data.User) {
 		if w.Config.Recommend.Offline.EnableLatestRecommend {
 			localStartTime := time.Now()
 			for _, category := range append([]string{""}, itemCategories...) {
-				latestItems, err := w.CacheClient.GetSorted(ctx, cache.Key(cache.LatestItems, category), 0, w.Config.Recommend.CacheSize)
+				latestItems, err := w.fetchLatestItems(ctx, category)
 				if err != nil {
 					log.Logger().Error("failed to load latest items", zap.Error(err))
 					return errors.Trace(err)
@@ -835,6 +835,12 @@ func (w *Worker) Recommend(users []data.User) {
 	OfflineRecommendStepSecondsVec.WithLabelValues("user_based_recommend").Set(userBasedRecommendSeconds.Load())
 	OfflineRecommendStepSecondsVec.WithLabelValues("latest_recommend").Set(latestRecommendSeconds.Load())
 	OfflineRecommendStepSecondsVec.WithLabelValues("popular_recommend").Set(popularRecommendSeconds.Load())
+}
+
+// TODO cache latestItems to local
+func (w *Worker) fetchLatestItems(ctx context.Context, category string) ([]cache.Scored, error) {
+	latestItems, err := w.CacheClient.GetSorted(ctx, cache.Key(cache.LatestItems, category), 0, w.Config.Recommend.CacheSize)
+	return latestItems, err
 }
 
 func (w *Worker) collaborativeRecommendBruteForce(userId string, itemCategories []string, excludeSet *strset.Set, itemCache *ItemCache) (map[string][]string, time.Duration, error) {
