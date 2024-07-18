@@ -731,6 +731,9 @@ func (s *RestServer) Recommend(ctx context.Context, response *restful.Response, 
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
+		if len(recommendCtx.results) > n {
+			break
+		}
 	}
 
 	// return recommendations
