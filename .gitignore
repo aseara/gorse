@@ -15,6 +15,9 @@
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
+tmp
+one_cache.data
+
 ### Go Patch ###
 /vendor/
 /Godeps/
@@ -31,6 +34,7 @@
 .idea/**/shelf
 
 # Sensitive or high-churn files
+.idea
 .idea/**/dataSources/
 .idea/**/dataSources.ids
 .idea/**/dataSources.local.xml

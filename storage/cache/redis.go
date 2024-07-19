@@ -373,36 +373,45 @@ func (r *Redis) DeleteDocuments(ctx context.Context, collections []string, condi
 }
 
 func parseSearchDocumentsResult(result any) (count int64, keys []string, documents []Document, err error) {
-	rows, ok := result.([]any)
+	resultMap, ok := result.(map[any]any)
 	if !ok {
-		return 0, nil, nil, errors.Errorf("invalid FT.SEARCH result: %#v", result)
+		return 0, nil, nil, errors.Errorf("invalid FT.SEARCH #1 result: %#v", result)
 	}
-	count, ok = rows[0].(int64)
+
+	rows, ok := resultMap["results"].([]any)
 	if !ok {
-		return 0, nil, nil, errors.Errorf("invalid FT.SEARCH result: %#v", rows[0])
+		return 0, nil, nil, errors.Errorf("invalid FT.SEARCH #2 result: %#v", result)
+	}
+	count, ok = resultMap["total_results"].(int64)
+	if !ok {
+		return 0, nil, nil, errors.Errorf("invalid FT.SEARCH #3 result: %#v", rows[0])
 	}
 	for i := 1; i < len(rows); i += 2 {
-		key, ok := rows[i].(string)
+
+		row, ok := rows[i].(map[any]any)
 		if !ok {
-			return 0, nil, nil, errors.Errorf("invalid FT.SEARCH result: %#v", rows[i])
+			return 0, nil, nil, errors.Errorf("invalid FT.SEARCH #4 result: %#v", rows[i])
+		}
+
+		key, ok := row["id"].(string)
+		if !ok {
+			return 0, nil, nil, errors.Errorf("invalid FT.SEARCH #5 result: %#v", rows[i])
 		}
 		keys = append(keys, key)
-		row, ok := rows[i+1].([]any)
+
+		fields, ok := row["extra_attributes"].(map[any]any)
 		if !ok {
-			return 0, nil, nil, errors.Errorf("invalid FT.SEARCH result: %#v", rows[i+1])
+			return 0, nil, nil, errors.Errorf("invalid FT.SEARCH #6 result: %#v", rows[i+1])
 		}
-		fields := make(map[string]any)
-		for j := 0; j < len(row); j += 2 {
-			fields[row[j].(string)] = row[j+1]
-		}
+
 		var document Document
 		document.Id, ok = fields["id"].(string)
 		if !ok {
-			return 0, nil, nil, errors.Errorf("invalid FT.SEARCH result: %#v", fields["id"])
+			return 0, nil, nil, errors.Errorf("invalid FT.SEARCH #7 result: %#v", fields["id"])
 		}
 		score, ok := fields["score"].(string)
 		if !ok {
-			return 0, nil, nil, errors.Errorf("invalid FT.SEARCH result: %#v", fields["score"])
+			return 0, nil, nil, errors.Errorf("invalid FT.SEARCH #8 result: %#v", fields["score"])
 		}
 		document.Score, err = strconv.ParseFloat(score, 64)
 		if err != nil {
@@ -410,7 +419,7 @@ func parseSearchDocumentsResult(result any) (count int64, keys []string, documen
 		}
 		categories, ok := fields["categories"].(string)
 		if !ok {
-			return 0, nil, nil, errors.Errorf("invalid FT.SEARCH result: %#v", fields["categories"])
+			return 0, nil, nil, errors.Errorf("invalid FT.SEARCH #9 result: %#v", fields["categories"])
 		}
 		document.Categories, err = decodeCategories(categories)
 		if err != nil {
@@ -418,7 +427,7 @@ func parseSearchDocumentsResult(result any) (count int64, keys []string, documen
 		}
 		timestamp, ok := fields["timestamp"].(string)
 		if !ok {
-			return 0, nil, nil, errors.Errorf("invalid FT.SEARCH result: %#v", fields["timestamp"])
+			return 0, nil, nil, errors.Errorf("invalid FT.SEARCH #10 result: %#v", fields["timestamp"])
 		}
 		timestampMicros, err := strconv.ParseInt(timestamp, 10, 64)
 		if err != nil {

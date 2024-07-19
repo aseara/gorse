@@ -254,7 +254,7 @@ func (t *FindItemNeighborsTask) run(ctx context.Context, j *task.JobsAllocator) 
 				throughput := completedCount - previousCount
 				previousCount = completedCount
 				if throughput > 0 {
-					log.Logger().Debug("searching neighbors of items",
+					log.Logger().Info("searching neighbors of items",
 						zap.Int("n_complete_items", completedCount),
 						zap.Int("n_items", dataset.ItemCount()),
 						zap.Int("throughput", throughput/10))

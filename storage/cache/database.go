@@ -220,7 +220,8 @@ func NewDocumentAggregator(timestamp time.Time) *DocumentAggregator {
 
 func (aggregator *DocumentAggregator) Add(category string, values []string, scores []float64) {
 	for i, value := range values {
-		if _, ok := aggregator.Documents[value]; !ok {
+		key := category + ":" + value
+		if _, ok := aggregator.Documents[key]; !ok {
 			aggregator.Documents[value] = &Document{
 				Id:         value,
 				Score:      scores[i],
@@ -228,10 +229,10 @@ func (aggregator *DocumentAggregator) Add(category string, values []string, scor
 				Timestamp:  aggregator.Timestamp,
 			}
 		} else {
-			if aggregator.Documents[value].Score != scores[i] {
+			if aggregator.Documents[key].Score != scores[i] {
 				panic("score should be the same")
 			}
-			aggregator.Documents[value].Categories = append(aggregator.Documents[value].Categories, category)
+			aggregator.Documents[key].Categories = append(aggregator.Documents[key].Categories, category)
 		}
 	}
 }
