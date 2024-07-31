@@ -132,6 +132,12 @@ func NewWorker(masterHost string, masterPort int, httpHost string, httpPort, job
 func (w *Worker) SetOneMode(settings *config.Settings) {
 	w.oneMode = true
 	w.Settings = settings
+
+	// reset ticker
+	if w.tickDuration != w.Config.Recommend.Offline.CheckRecommendPeriod {
+		w.tickDuration = w.Config.Recommend.Offline.CheckRecommendPeriod
+		w.ticker.Reset(w.Config.Recommend.Offline.CheckRecommendPeriod)
+	}
 }
 
 // Sync this worker to the master.
@@ -488,7 +494,7 @@ func (w *Worker) Recommend(users []data.User) {
 					if w.masterClient != nil {
 						recommendTask.Add(throughput * itemCache.Len() * recommendComplexityFactor)
 					}
-					log.Logger().Info("ranking recommendation",
+					log.Logger().Info("generate offline recommendation",
 						zap.Int("n_complete_users", completedCount),
 						zap.Int("n_working_users", len(users)),
 						zap.Int("throughput", throughput))
@@ -529,6 +535,8 @@ func (w *Worker) Recommend(users []data.User) {
 			CollaborativeFilteringIndexRecall.Set(1)
 		}
 	}
+
+	currentRankingIndex := w.rankingIndex
 
 	// recommendation
 	startTime := time.Now()
@@ -589,8 +597,8 @@ func (w *Worker) Recommend(users []data.User) {
 			if userIndex := w.RankingModel.GetUserIndex().ToNumber(userId); w.RankingModel.IsUserPredictable(userIndex) {
 				var recommend map[string][]string
 				var usedTime time.Duration
-				if w.Config.Recommend.Collaborative.EnableIndex && w.rankingIndex != nil {
-					recommend, usedTime, err = w.collaborativeRecommendHNSW(w.rankingIndex, userId, itemCategories, excludeSet, itemCache)
+				if w.Config.Recommend.Collaborative.EnableIndex && currentRankingIndex != nil {
+					recommend, usedTime, err = w.collaborativeRecommendHNSW(currentRankingIndex, userId, itemCategories, excludeSet, itemCache)
 				} else {
 					recommend, usedTime, err = w.collaborativeRecommendBruteForce(userId, itemCategories, excludeSet, itemCache)
 				}

@@ -171,7 +171,15 @@ func Open(path, tablePrefix string) (Database, error) {
 		); err != nil {
 			return nil, errors.Trace(err)
 		}
-		database.gormDB, err = gorm.Open(mysql.New(mysql.Config{Conn: database.client}), storage.NewGORMConfig(tablePrefix))
+		gormConfig := storage.NewGORMConfig(tablePrefix)
+		gormConfig.Logger = &zapgorm2.Logger{
+			ZapLogger:                 log.Logger(),
+			LogLevel:                  logger.Warn,
+			SlowThreshold:             200 * time.Second,
+			SkipCallerLookup:          false,
+			IgnoreRecordNotFoundError: false,
+		}
+		database.gormDB, err = gorm.Open(mysql.New(mysql.Config{Conn: database.client}), gormConfig)
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
@@ -257,7 +265,7 @@ func Open(path, tablePrefix string) (Database, error) {
 		gormConfig.Logger = &zapgorm2.Logger{
 			ZapLogger:                 log.Logger(),
 			LogLevel:                  logger.Warn,
-			SlowThreshold:             10 * time.Second,
+			SlowThreshold:             200 * time.Second,
 			SkipCallerLookup:          false,
 			IgnoreRecordNotFoundError: false,
 		}

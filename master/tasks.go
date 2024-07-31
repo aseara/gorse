@@ -886,6 +886,8 @@ func (m *Master) checkUserNeighborCacheTimeout(userId string) bool {
 	if err != nil {
 		if !errors.Is(err, errors.NotFound) {
 			log.Logger().Error("failed to read last modify user time", zap.Error(err))
+		} else {
+			_ = m.CacheClient.Set(ctx, cache.Time(cache.Key(cache.LastModifyUserTime, userId), time.Now()))
 		}
 		return true
 	}
@@ -943,6 +945,8 @@ func (m *Master) checkItemNeighborCacheTimeout(itemId string, categories []strin
 	if err != nil {
 		if !errors.Is(err, errors.NotFound) {
 			log.Logger().Error("failed to read last modify item time", zap.Error(err))
+		} else {
+			_ = m.CacheClient.Set(ctx, cache.Time(cache.Key(cache.LastModifyItemTime, itemId), time.Now()))
 		}
 		return true
 	}

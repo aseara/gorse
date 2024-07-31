@@ -78,7 +78,7 @@ type MasterConfig struct {
 	HttpHost            string        `mapstructure:"http_host"`                    // HTTP host
 	HttpCorsDomains     []string      `mapstructure:"http_cors_domains"`            // add allowed cors domains
 	HttpCorsMethods     []string      `mapstructure:"http_cors_methods"`            // add allowed cors methods
-	NumJobs             int           `mapstructure:"n_jobs" validate:"gt=0"`       // number of working jobs
+	NumJobs             int           `mapstructure:"n_jobs"`                       // number of working jobs
 	MetaTimeout         time.Duration `mapstructure:"meta_timeout" validate:"gt=0"` // cluster meta timeout (second)
 	DashboardUserName   string        `mapstructure:"dashboard_user_name"`          // dashboard user name
 	DashboardPassword   string        `mapstructure:"dashboard_password"`           // dashboard password

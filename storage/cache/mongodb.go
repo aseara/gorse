@@ -17,19 +17,33 @@ package cache
 import (
 	"context"
 	"github.com/juju/errors"
+	"github.com/zhenghaoz/gorse/base/log"
 	"github.com/zhenghaoz/gorse/storage"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.uber.org/zap"
+	"strings"
+	"sync"
+	"time"
 )
 
 type MongoDB struct {
 	storage.TablePrefix
 	client *mongo.Client
 	dbName string
+
+	// optimize write performance for sorted set
+	modelChan      chan []mongo.WriteModel
+	modelCache     []mongo.WriteModel
+	flushChan      chan struct{}
+	flushBatchSize int
+	lastFlushTime  time.Time
+	flushInterval  time.Duration
+	flushTicker    *time.Ticker
 }
 
-func (m MongoDB) Init() error {
+func (m *MongoDB) Init() error {
 	ctx := context.Background()
 	d := m.client.Database(m.dbName)
 	// list collections
@@ -94,18 +108,83 @@ func (m MongoDB) Init() error {
 	if err != nil {
 		return errors.Trace(err)
 	}
+
 	return nil
 }
 
-func (m MongoDB) Close() error {
+func (m *MongoDB) StartSortedSetFlush() error {
+	// flush fields init
+	m.modelChan = make(chan []mongo.WriteModel, 1000)
+	m.flushChan = make(chan struct{}, 10)
+	m.flushBatchSize = 1000
+	m.flushInterval = time.Second * 10
+	m.flushTicker = time.NewTicker(m.flushInterval)
+
+	m.modelCache = make([]mongo.WriteModel, 0, m.flushBatchSize*2)
+
+	var flushLock sync.Mutex
+
+	go func() {
+		for {
+			select {
+			case models := <-m.modelChan:
+				var temp []mongo.WriteModel
+				func() {
+					flushLock.Lock()
+					defer flushLock.Unlock()
+
+					m.modelCache = append(m.modelCache, models...)
+				}()
+				if len(temp) >= m.flushBatchSize {
+					m.flushChan <- struct{}{}
+				}
+			case <-m.flushTicker.C:
+				if len(m.modelCache) > 0 && m.lastFlushTime.Before(time.Now().Add(-m.flushInterval)) {
+					m.flushChan <- struct{}{}
+				}
+
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			select {
+			case <-m.flushChan:
+				m.lastFlushTime = time.Now()
+
+				var models []mongo.WriteModel
+				func() {
+					flushLock.Lock()
+					defer flushLock.Unlock()
+
+					models = m.modelCache
+					m.modelCache = make([]mongo.WriteModel, 0, m.flushBatchSize*2)
+				}()
+				go func() {
+					if len(models) > 0 {
+						c := m.client.Database(m.dbName).Collection(m.SortedSetsTable())
+						if _, err := c.BulkWrite(context.Background(), models); err != nil {
+							log.Logger().Error("failed to write to mongodb", zap.Error(err))
+						}
+					}
+				}()
+			}
+		}
+	}()
+
+	return nil
+}
+
+func (m *MongoDB) Close() error {
 	return m.client.Disconnect(context.Background())
 }
 
-func (m MongoDB) Ping() error {
+func (m *MongoDB) Ping() error {
 	return m.client.Ping(context.Background(), nil)
 }
 
-func (m MongoDB) Scan(work func(string) error) error {
+func (m *MongoDB) Scan(work func(string) error) error {
 	ctx := context.Background()
 
 	// scan values
@@ -171,7 +250,7 @@ func (m MongoDB) Scan(work func(string) error) error {
 	return nil
 }
 
-func (m MongoDB) Purge() error {
+func (m *MongoDB) Purge() error {
 	tables := []string{m.ValuesTable(), m.SortedSetsTable(), m.SetsTable()}
 	for _, tableName := range tables {
 		c := m.client.Database(m.dbName).Collection(tableName)
@@ -183,7 +262,7 @@ func (m MongoDB) Purge() error {
 	return nil
 }
 
-func (m MongoDB) Set(ctx context.Context, values ...Value) error {
+func (m *MongoDB) Set(ctx context.Context, values ...Value) error {
 	if len(values) == 0 {
 		return nil
 	}
@@ -199,7 +278,7 @@ func (m MongoDB) Set(ctx context.Context, values ...Value) error {
 	return errors.Trace(err)
 }
 
-func (m MongoDB) Get(ctx context.Context, name string) *ReturnValue {
+func (m *MongoDB) Get(ctx context.Context, name string) *ReturnValue {
 	c := m.client.Database(m.dbName).Collection(m.ValuesTable())
 	r := c.FindOne(ctx, bson.M{"_id": bson.M{"$eq": name}})
 	if err := r.Err(); err == mongo.ErrNoDocuments {
@@ -214,13 +293,13 @@ func (m MongoDB) Get(ctx context.Context, name string) *ReturnValue {
 	}
 }
 
-func (m MongoDB) Delete(ctx context.Context, name string) error {
+func (m *MongoDB) Delete(ctx context.Context, name string) error {
 	c := m.client.Database(m.dbName).Collection(m.ValuesTable())
 	_, err := c.DeleteOne(ctx, bson.M{"_id": bson.M{"$eq": name}})
 	return errors.Trace(err)
 }
 
-func (m MongoDB) GetSet(ctx context.Context, name string) ([]string, error) {
+func (m *MongoDB) GetSet(ctx context.Context, name string) ([]string, error) {
 	c := m.client.Database(m.dbName).Collection(m.SetsTable())
 	r, err := c.Find(ctx, bson.M{"name": name})
 	if err != nil {
@@ -237,7 +316,7 @@ func (m MongoDB) GetSet(ctx context.Context, name string) ([]string, error) {
 	return members, nil
 }
 
-func (m MongoDB) SetSet(ctx context.Context, name string, members ...string) error {
+func (m *MongoDB) SetSet(ctx context.Context, name string, members ...string) error {
 	c := m.client.Database(m.dbName).Collection(m.SetsTable())
 	var models []mongo.WriteModel
 	models = append(models, mongo.NewDeleteManyModel().SetFilter(bson.M{"name": bson.M{"$eq": name}}))
@@ -251,7 +330,7 @@ func (m MongoDB) SetSet(ctx context.Context, name string, members ...string) err
 	return errors.Trace(err)
 }
 
-func (m MongoDB) AddSet(ctx context.Context, name string, members ...string) error {
+func (m *MongoDB) AddSet(ctx context.Context, name string, members ...string) error {
 	if len(members) == 0 {
 		return nil
 	}
@@ -267,7 +346,7 @@ func (m MongoDB) AddSet(ctx context.Context, name string, members ...string) err
 	return errors.Trace(err)
 }
 
-func (m MongoDB) RemSet(ctx context.Context, name string, members ...string) error {
+func (m *MongoDB) RemSet(ctx context.Context, name string, members ...string) error {
 	if len(members) == 0 {
 		return nil
 	}
@@ -281,7 +360,7 @@ func (m MongoDB) RemSet(ctx context.Context, name string, members ...string) err
 	return errors.Trace(err)
 }
 
-func (m MongoDB) GetSorted(ctx context.Context, name string, begin, end int) ([]Scored, error) {
+func (m *MongoDB) GetSorted(ctx context.Context, name string, begin, end int) ([]Scored, error) {
 	c := m.client.Database(m.dbName).Collection(m.SortedSetsTable())
 	opt := options.Find()
 	opt.SetSort(bson.M{"score": -1})
@@ -309,7 +388,7 @@ func (m MongoDB) GetSorted(ctx context.Context, name string, begin, end int) ([]
 	return scores, nil
 }
 
-func (m MongoDB) GetSortedByScore(ctx context.Context, name string, begin, end float64) ([]Scored, error) {
+func (m *MongoDB) GetSortedByScore(ctx context.Context, name string, begin, end float64) ([]Scored, error) {
 	c := m.client.Database(m.dbName).Collection(m.SortedSetsTable())
 	opt := options.Find()
 	opt.SetSort(bson.M{"score": 1})
@@ -335,7 +414,7 @@ func (m MongoDB) GetSortedByScore(ctx context.Context, name string, begin, end f
 	return scores, nil
 }
 
-func (m MongoDB) RemSortedByScore(ctx context.Context, name string, begin, end float64) error {
+func (m *MongoDB) RemSortedByScore(ctx context.Context, name string, begin, end float64) error {
 	c := m.client.Database(m.dbName).Collection(m.SortedSetsTable())
 	_, err := c.DeleteMany(ctx, bson.D{
 		{"name", name},
@@ -345,7 +424,7 @@ func (m MongoDB) RemSortedByScore(ctx context.Context, name string, begin, end f
 	return errors.Trace(err)
 }
 
-func (m MongoDB) AddSorted(ctx context.Context, sortedSets ...SortedSet) error {
+func (m *MongoDB) AddSorted(ctx context.Context, sortedSets ...SortedSet) error {
 	c := m.client.Database(m.dbName).Collection(m.SortedSetsTable())
 	var models []mongo.WriteModel
 	for _, sorted := range sortedSets {
@@ -363,21 +442,25 @@ func (m MongoDB) AddSorted(ctx context.Context, sortedSets ...SortedSet) error {
 	return errors.Trace(err)
 }
 
-func (m MongoDB) SetSorted(ctx context.Context, name string, scores []Scored) error {
-	c := m.client.Database(m.dbName).Collection(m.SortedSetsTable())
-	var models []mongo.WriteModel
-	models = append(models, mongo.NewDeleteManyModel().SetFilter(bson.M{"name": bson.M{"$eq": name}}))
-	for _, score := range scores {
-		models = append(models, mongo.NewUpdateOneModel().
-			SetUpsert(true).
-			SetFilter(bson.M{"name": bson.M{"$eq": name}, "member": bson.M{"$eq": score.Id}}).
-			SetUpdate(bson.M{"$set": bson.M{"name": name, "member": score.Id, "score": score.Score}}))
+func (m *MongoDB) SetSorted(ctx context.Context, name string, scores []Scored) error {
+	models := setSortedModels(name, scores)
+
+	// if it isn't of offline recommend, write directly
+	if !strings.HasPrefix(name, OfflineRecommend) &&
+		!strings.HasPrefix(name, ItemNeighbors) &&
+		!strings.HasPrefix(name, UserNeighbors) {
+		c := m.client.Database(m.dbName).Collection(m.SortedSetsTable())
+		_, err := c.BulkWrite(ctx, models)
+		return errors.Trace(err)
 	}
-	_, err := c.BulkWrite(ctx, models)
-	return errors.Trace(err)
+
+	// for offline recommend, buffer for optimizing writing performance
+	m.modelChan <- models
+
+	return nil
 }
 
-func (m MongoDB) RemSorted(ctx context.Context, members ...SetMember) error {
+func (m *MongoDB) RemSorted(ctx context.Context, members ...SetMember) error {
 	if len(members) == 0 {
 		return nil
 	}
@@ -388,4 +471,17 @@ func (m MongoDB) RemSorted(ctx context.Context, members ...SetMember) error {
 	}
 	_, err := c.BulkWrite(ctx, models)
 	return errors.Trace(err)
+}
+
+func setSortedModels(name string, scores []Scored) []mongo.WriteModel {
+	models := make([]mongo.WriteModel, 0, len(scores)+1)
+	set := make(map[string]bool)
+	models = append(models, mongo.NewDeleteManyModel().SetFilter(bson.M{"name": bson.M{"$eq": name}}))
+	for _, score := range scores {
+		if _, ok := set[score.Id]; !ok {
+			models = append(models, mongo.NewInsertOneModel().SetDocument(bson.M{"name": name, "member": score.Id, "score": score.Score}))
+			set[score.Id] = true
+		}
+	}
+	return models
 }

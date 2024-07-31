@@ -18,6 +18,7 @@
 # tmp dir for temporary test data
 tmp/**
 one_cache.data/**
+one_cache.data
 
 ### Go Patch ###
 /vendor/

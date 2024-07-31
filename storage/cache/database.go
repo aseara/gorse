@@ -343,6 +343,9 @@ func Open(path, tablePrefix string) (Database, error) {
 			database.dbName = cs.Database
 			database.TablePrefix = storage.TablePrefix(tablePrefix)
 		}
+		if err := database.StartSortedSetFlush(); err != nil {
+			return nil, errors.Trace(err)
+		}
 		return database, nil
 	} else if strings.HasPrefix(path, storage.PostgresPrefix) || strings.HasPrefix(path, storage.PostgreSQLPrefix) {
 		database := new(SQLDatabase)
