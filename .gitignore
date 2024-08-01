@@ -19,7 +19,7 @@
 tmp/**
 one_cache.data/**
 one_cache.data
-
+*.data
 ### Go Patch ###
 /vendor/
 /Godeps/

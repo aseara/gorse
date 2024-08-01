@@ -309,7 +309,7 @@ func UnmarshalModel(r io.Reader) (MatrixFactorization, error) {
 //	 Reg 		- The regularization parameter of the cost function that is
 //				  optimized. Default is 0.01.
 //	 Lr 		- The learning rate of SGD. Default is 0.05.
-//	 nFactors	- The number of latent factors. Default is 10.
+//	 nFactors	- The number of latent factors. Default is 16.
 //	 NEpochs	- The number of iteration of the SGD procedure. Default is 100.
 //	 InitMean	- The mean of initial random latent factors. Default is 0.
 //	 InitStdDev	- The standard deviation of initial random latent factors. Default is 0.001.
