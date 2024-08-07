@@ -11,6 +11,7 @@ steps:
     image: kmsp/kmsp-plugin-drone:1.0.0
     settings:
       method: validate
+      app_version: 0.0.1
       server:
         from_secret: kmsp_dev_server
 
