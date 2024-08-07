@@ -65,8 +65,7 @@ volumes:
 
 trigger:
   branch:
-    - dev
-    - fix
+    - hg-optimization
   event:
     - push
 
