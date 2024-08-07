@@ -1,0 +1,73 @@
+---
+kind: pipeline
+name: dev
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+  - name: kmsp_validate
+    image: kmsp/kmsp-plugin-drone:1.0.0
+    settings:
+      method: validate
+      server:
+        from_secret: kmsp_dev_server
+
+  - name: cp_dockerfile
+    image: kmsp/maven:jdk8u232-b09-3.6.2
+    commands:
+      - cp -f cmd/gorse-worker/Dockerfile ./Dockerfile
+    volumes:
+      - name: drone_home
+        path: /root
+
+  - name: docker_build
+    image: kmsp/docker:linux-amd64
+    settings:
+      password:
+        from_secret: registry_password
+      purge: true
+      registry: registry-vpc.cn-shanghai.aliyuncs.com
+      repo: registry-vpc.cn-shanghai.aliyuncs.com/kmsp-${DRONE_REPO_NAMESPACE}/${DRONE_REPO_NAME}
+      username: sx-kmsp@svwsx
+
+  - name: kmsp_feedback
+    image: kmsp/kmsp-plugin-drone:1.0.0
+    settings:
+      method: feedback
+      server:
+        from_secret: kmsp_dev_server
+    failure: ignore
+    when:
+      status:
+        - failure
+        - success
+
+  - name: notify
+    image: kmsp/drone-dingtalk:1.0.1
+    settings:
+      message_color: true
+      message_pic: true
+      sha_link: true
+      token:
+        from_secret: dingtalk_token
+      type: markdown
+    when:
+      status:
+        - failure
+        - success
+
+volumes:
+  - name: drone_home
+    host:
+      path: /data/drone/home
+
+trigger:
+  branch:
+    - dev
+    - fix
+  event:
+    - push
+
+...
