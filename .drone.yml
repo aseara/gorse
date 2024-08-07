@@ -18,9 +18,6 @@ steps:
     image: kmsp/maven:jdk8u232-b09-3.6.2
     commands:
       - cp -f cmd/gorse-worker/Dockerfile ./Dockerfile
-    volumes:
-      - name: drone_home
-        path: /root
 
   - name: docker_build
     image: kmsp/docker:linux-amd64
