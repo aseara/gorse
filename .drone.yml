@@ -55,11 +55,6 @@ steps:
         - failure
         - success
 
-volumes:
-  - name: drone_home
-    host:
-      path: /data/drone/home
-
 trigger:
   branch:
     - hg-optimization
