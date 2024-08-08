@@ -58,7 +58,7 @@ steps:
 
 trigger:
   branch:
-    - hg-optimization
+    - deploy-worker
   event:
     - push
 
