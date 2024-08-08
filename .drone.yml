@@ -19,8 +19,8 @@ steps:
     image: kmsp/maven:jdk8u232-b09-3.6.2
     commands:
       - cp -f cmd/gorse-worker/Dockerfile ./Dockerfile
-      - sed -i 's/golang:1.22/registry-vpc.cn-shanghai.aliyuncs.com\/kmsp\/golang:1.22/g' Dockerfile
-      - sed -i 's/scratch/registry-vpc.cn-shanghai.aliyuncs.com\/kmsp\/scratch:latest/g' Dockerfile
+      - sed -i 's/golang:1.22/registry-vpc.cn-shanghai.aliyuncs.com\\/kmsp\\/golang:1.22/g' Dockerfile
+      - sed -i 's/scratch/registry-vpc.cn-shanghai.aliyuncs.com\\/kmsp\\/scratch:latest/g' Dockerfile
 
   - name: docker_build
     image: kmsp/docker:linux-amd64
