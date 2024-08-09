@@ -75,9 +75,29 @@ func (db *MongoDB) Init() error {
 		if err = d.CreateCollection(ctx, db.UsersTable()); err != nil {
 			return errors.Trace(err)
 		}
+		// create index
+		_, err = d.Collection(db.UsersTable()).Indexes().CreateOne(ctx, mongo.IndexModel{
+			Keys: bson.M{
+				"userid": 1,
+			},
+			Options: options.Index().SetUnique(true),
+		})
+		if err != nil {
+			return errors.Trace(err)
+		}
 	}
 	if !hasItems {
 		if err = d.CreateCollection(ctx, db.ItemsTable()); err != nil {
+			return errors.Trace(err)
+		}
+		// create index
+		_, err = d.Collection(db.ItemsTable()).Indexes().CreateOne(ctx, mongo.IndexModel{
+			Keys: bson.M{
+				"itemid": 1,
+			},
+			Options: options.Index().SetUnique(true),
+		})
+		if err != nil {
 			return errors.Trace(err)
 		}
 	}
@@ -85,51 +105,34 @@ func (db *MongoDB) Init() error {
 		if err = d.CreateCollection(ctx, db.FeedbackTable()); err != nil {
 			return errors.Trace(err)
 		}
+		// create index
+		_, err = d.Collection(db.FeedbackTable()).Indexes().CreateOne(ctx, mongo.IndexModel{
+			Keys: bson.M{
+				"feedbackkey": 1,
+			},
+			Options: options.Index().SetUnique(true),
+		})
+		if err != nil {
+			return errors.Trace(err)
+		}
+		_, err = d.Collection(db.FeedbackTable()).Indexes().CreateOne(ctx, mongo.IndexModel{
+			Keys: bson.M{
+				"feedbackkey.userid": 1,
+			},
+		})
+		if err != nil {
+			return errors.Trace(err)
+		}
+		_, err = d.Collection(db.FeedbackTable()).Indexes().CreateOne(ctx, mongo.IndexModel{
+			Keys: bson.M{
+				"feedbackkey.itemid": 1,
+			},
+		})
+		if err != nil {
+			return errors.Trace(err)
+		}
 	}
-	// create index
-	_, err = d.Collection(db.UsersTable()).Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys: bson.M{
-			"userid": 1,
-		},
-		Options: options.Index().SetUnique(true),
-	})
-	if err != nil {
-		return errors.Trace(err)
-	}
-	_, err = d.Collection(db.ItemsTable()).Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys: bson.M{
-			"itemid": 1,
-		},
-		Options: options.Index().SetUnique(true),
-	})
-	if err != nil {
-		return errors.Trace(err)
-	}
-	_, err = d.Collection(db.FeedbackTable()).Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys: bson.M{
-			"feedbackkey": 1,
-		},
-		Options: options.Index().SetUnique(true),
-	})
-	if err != nil {
-		return errors.Trace(err)
-	}
-	_, err = d.Collection(db.FeedbackTable()).Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys: bson.M{
-			"feedbackkey.userid": 1,
-		},
-	})
-	if err != nil {
-		return errors.Trace(err)
-	}
-	_, err = d.Collection(db.FeedbackTable()).Indexes().CreateOne(ctx, mongo.IndexModel{
-		Keys: bson.M{
-			"feedbackkey.itemid": 1,
-		},
-	})
-	if err != nil {
-		return errors.Trace(err)
-	}
+
 	return nil
 }
 
