@@ -24,7 +24,7 @@ RUN /usr/bin/gorse-worker --version
 ############################
 FROM scratch
 
-# 相关业务文件
+# copy executable files
 COPY --from=builder /go/bin/grpc-health-probe  /usr/local/bin/grpc-health-probe
 COPY --from=builder /usr/bin/gorse-worker /app/gorse-worker
 
